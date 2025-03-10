@@ -53,7 +53,7 @@ jobs:
 
       # Set up a Synapse server
       - name: Start synapse server
-        uses: michaelkaye/setup-matrix-synapse@v1
+        uses: michaelkaye/setup-matrix-synapse@v1.0.5
         with:
           uploadLogs: true
           httpPort: 8080
