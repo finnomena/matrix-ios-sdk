@@ -38,10 +38,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gems-
       # Cache for python env for Synapse
-      - name: Set up Python 3.8
+      - name: Set up Python 3.13
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: 3.13
       - name: Cache pip
         uses: actions/cache@v4
         with:
@@ -53,7 +53,7 @@ jobs:
 
       # Set up a Synapse server
       - name: Start synapse server
-        uses: michaelkaye/setup-matrix-synapse@v1.0.3
+        uses: michaelkaye/setup-matrix-synapse@v1
         with:
           uploadLogs: true
           httpPort: 8080
