@@ -563,8 +563,8 @@ extension MXCryptoMachine: MXCryptoRoomEventDecrypting {
             // The app does not use strict shields by default, in the future this will become configurable
             // per room.
             strictShields: false,
-            // TODO: Not sure what to put here
-            decryptionSettings: .init(senderDeviceTrustRequirement: .crossSigned)
+            // Keep existing legacy behaviour
+            decryptionSettings: .init(senderDeviceTrustRequirement: .untrusted)
         )
     }
     
