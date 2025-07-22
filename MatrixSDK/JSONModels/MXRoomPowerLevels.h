@@ -48,6 +48,7 @@ extern NSInteger const kMXRoomPowerLevelNotificationsRoomDefault;
 
 /**
  Helper to get the power level of a member of the room.
+ NOTE: Should not be used directly anymore prefer the MXRoomState implementation over this!
 
  @param userId the id of the user.
  @return his power level.
