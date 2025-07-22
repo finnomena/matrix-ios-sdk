@@ -328,6 +328,23 @@
     return avatar;
 }
 
+- (NSString *)roomVersion
+{
+    NSString *roomVersion;
+    
+    // Check it from the state events
+    MXEvent *event = [stateEvents objectForKey:kMXEventTypeStringRoomCreate].lastObject;
+    NSDictionary<NSString *, id> *eventContent = [self contentOfEvent:event];
+    
+    if (event && eventContent)
+    {
+        MXJSONModelSetString(roomVersion, eventContent[@"room_version"]);
+        roomVersion = [roomVersion copy];
+
+    }
+    return roomVersion;
+}
+
 - (NSString *)creatorUserId
 {
     NSString *creatorUserId;
@@ -632,11 +649,23 @@
 
 - (NSInteger)powerLevelOfUserWithUserID:(NSString *)userId
 {
-    if ([userId isEqualToString: [self creatorUserId]] || [[self additionalCreators] containsObject: userId])
+    if ([self isMSC4289Supported])
     {
-        return maxPowerLevel ? maxPowerLevel + 1 : NSIntegerMax;
+        if ([userId isEqualToString: [self creatorUserId]] || [[self additionalCreators] containsObject: userId])
+        {
+            return maxPowerLevel ? maxPowerLevel + 1 : NSIntegerMax;
+        }
     }
     return [powerLevels powerLevelOfUserWithUserID:userId];
+}
+
+- (BOOL)isMSC4289Supported {
+    NSArray<NSString*> *supportedRoomVersions = @[@"org.matrix.hydra.11",@"12"];
+    if ([self roomVersion])
+    {
+        return [supportedRoomVersions containsObject:[self roomVersion]];
+    }
+    return NO;
 }
 
 # pragma mark - Conference call
