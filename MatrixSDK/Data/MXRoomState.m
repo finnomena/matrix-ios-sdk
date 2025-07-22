@@ -634,7 +634,7 @@
 {
     if ([userId isEqualToString: [self creatorUserId]] || [[self additionalCreators] containsObject: userId])
     {
-        return NSIntegerMax;
+        return maxPowerLevel ? maxPowerLevel + 1 : NSIntegerMax;
     }
     return [powerLevels powerLevelOfUserWithUserID:userId];
 }

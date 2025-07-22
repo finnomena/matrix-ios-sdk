@@ -53,7 +53,7 @@ extern NSInteger const kMXRoomPowerLevelNotificationsRoomDefault;
  @param userId the id of the user.
  @return his power level.
  */
-- (NSInteger)powerLevelOfUserWithUserID:(NSString*)userId;
+- (NSInteger)powerLevelOfUserWithUserID:(NSString*)userId __attribute__((deprecated("Use the method in MXRoomState instead")));
 
 #pragma mark - Setup
 
