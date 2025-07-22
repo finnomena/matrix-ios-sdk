@@ -683,7 +683,8 @@ NSString *const kMXEventTypeStringCallNotifyUnstable = @"org.matrix.msc4075.call
             
         case MXEventTypeRoomCreate:
         {
-            allowedKeys = @[@"creator"];
+            allowedKeys = @[@"creator",
+                            @"additional_creators"];
             break;
         }
             

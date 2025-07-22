@@ -334,15 +334,30 @@
     
     // Check it from the state events
     MXEvent *event = [stateEvents objectForKey:kMXEventTypeStringRoomCreate].lastObject;
+    NSString* sender = [event sender];
     
+    if (event && sender)
+    {
+        creatorUserId = [sender copy];
+    }
+    return creatorUserId;
+}
+
+- (NSArray<NSString*> *)additionalCreators
+{
+    NSArray<NSString*> *additionalCreators = @[];
+    
+    // Check it from the state events
+    MXEvent *event = [stateEvents objectForKey:kMXEventTypeStringRoomCreate].lastObject;
     NSDictionary<NSString *, id> *eventContent = [self contentOfEvent:event];
     
     if (event && eventContent)
     {
-        MXJSONModelSetString(creatorUserId, eventContent[@"creator"]);
-        creatorUserId = [creatorUserId copy];
+        MXJSONModelSetArray(additionalCreators, eventContent[@"additional_creators"]);
+        additionalCreators = [additionalCreators copy];
+
     }
-    return creatorUserId;
+    return additionalCreators;
 }
 
 - (MXRoomHistoryVisibility)historyVisibility
@@ -601,11 +616,27 @@
     // Ignore banned and left (kicked) members
     if (member.membership != MXMembershipLeave && member.membership != MXMembershipBan)
     {
-        float userPowerLevelFloat = [powerLevels powerLevelOfUserWithUserID:userId];
-        powerLevel = maxPowerLevel ? userPowerLevelFloat / maxPowerLevel : 1;
+        float userPowerLevelFloat = [self powerLevelOfUserWithUserID:userId];
+        if (maxPowerLevel && userPowerLevelFloat >= maxPowerLevel)
+        {
+            powerLevel = 1;
+        }
+        else
+        {
+            powerLevel = maxPowerLevel ? userPowerLevelFloat / maxPowerLevel : 1;
+        }
     }
     
     return powerLevel;
+}
+
+- (NSInteger)powerLevelOfUserWithUserID:(NSString *)userId
+{
+    if ([userId isEqualToString: [self creatorUserId]] || [[self additionalCreators] containsObject: userId])
+    {
+        return NSIntegerMax;
+    }
+    return [powerLevels powerLevelOfUserWithUserID:userId];
 }
 
 # pragma mark - Conference call
