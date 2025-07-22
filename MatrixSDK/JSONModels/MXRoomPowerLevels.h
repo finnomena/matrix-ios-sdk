@@ -46,15 +46,6 @@ extern NSInteger const kMXRoomPowerLevelNotificationsRoomDefault;
  */
 @property (nonatomic) NSInteger usersDefault;
 
-/**
- Helper to get the power level of a member of the room.
- NOTE: Should not be used directly anymore prefer the MXRoomState implementation over this!
-
- @param userId the id of the user.
- @return his power level.
- */
-- (NSInteger)powerLevelOfUserWithUserID:(NSString*)userId __attribute__((deprecated("Use the method in MXRoomState instead")));
-
 #pragma mark - Setup
 
 /**

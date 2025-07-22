@@ -656,7 +656,18 @@
             return maxPowerLevel ? maxPowerLevel + 1 : NSIntegerMax;
         }
     }
-    return [powerLevels powerLevelOfUserWithUserID:userId];
+    
+    // By default, use usersDefault
+    NSInteger userPowerLevel = powerLevels.usersDefault;
+
+    NSNumber *powerLevel;
+    MXJSONModelSetNumber(powerLevel, powerLevels.users[userId]);
+    if (powerLevel)
+    {
+        userPowerLevel = [powerLevel integerValue];
+    }
+
+    return userPowerLevel;
 }
 
 - (BOOL)isMSC4289Supported {
