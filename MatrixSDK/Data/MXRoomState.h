@@ -288,6 +288,11 @@ Use MXRoomSummary.displayname to get a computed room display name.
  */
 - (NSInteger)powerLevelOfUserWithUserID:(NSString *)userId;
 
+/**
+ Returns if MSC4289 iz supported in this room
+ */
+- (BOOL)isMSC4289Supported;
+
 
 # pragma mark - Conference call
 /**
