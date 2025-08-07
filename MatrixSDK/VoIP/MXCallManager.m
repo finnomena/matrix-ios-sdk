@@ -200,7 +200,7 @@ NSTimeInterval const kMXCallDirectRoomJoinTimeout = 30;
     return theCall;
 }
 
-- (void)placeCallInRoom:(NSString *)roomId withVideo:(BOOL)video
+- (void)placeCallInRoom:(NSString *)roomId withVideo:(BOOL)video byPassRoomMemberCount:(BOOL)isBypass
                 success:(void (^)(MXCall *call))success
                 failure:(void (^)(NSError * _Nullable error))failure
 {
@@ -221,6 +221,7 @@ NSTimeInterval const kMXCallDirectRoomJoinTimeout = 30;
                                                    {
                                                        [self placeCallInRoom:roomId
                                                                          withVideo:video
+                                                             byPassRoomMemberCount:isBypass
                                                                            success:success
                                                                            failure:failure];
                                                        
@@ -235,7 +236,7 @@ NSTimeInterval const kMXCallDirectRoomJoinTimeout = 30;
 
     if (room && 1 < room.summary.membersCount.joined)
     {
-        if (2 == room.summary.membersCount.joined)
+        if (2 == room.summary.membersCount.joined || isBypass)
         {
             void (^initCall)(NSString *) = ^(NSString *callSignalingRoomId){
                 // Do a peer to peer, one to one call
@@ -1033,8 +1034,8 @@ NSTimeInterval const kMXCallDirectRoomJoinTimeout = 30;
                         }
                         
                         //  place a new audio call to the target to consult the transfer
-                        [self placeCallInRoom:room.roomId withVideo:NO success:^(MXCall * _Nonnull call) {
-                            
+                        [self placeCallInRoom:room.roomId withVideo:NO byPassRoomMemberCount:YES success:^(MXCall * _Nonnull call) {
+
                             //  mark the call with target & transferee as consulting
                             call.callWithTransferee = callWithTransferee;
                             call.transferee = transferee;
@@ -1503,6 +1504,7 @@ NSString *const kMXCallManagerConferenceUserDomain  = @"matrix.org";
 
 - (void)placeCallAgainst:(NSString *)phoneNumber
                withVideo:(BOOL)video
+   byPassRoomMemberCount:(BOOL)isBypass
                  success:(void (^)(MXCall * _Nonnull))success
                  failure:(void (^)(NSError * _Nullable))failure
 {
@@ -1517,6 +1519,7 @@ NSString *const kMXCallManagerConferenceUserDomain  = @"matrix.org";
                 //  room found, place the call in this room
                 [self placeCallInRoom:room.roomId
                             withVideo:video
+                byPassRoomMemberCount:isBypass
                               success:success
                               failure:failure];
             }

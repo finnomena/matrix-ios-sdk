@@ -124,10 +124,12 @@ extern NSString *const kMXProtocolVectorSipVirtual;
  
  @param roomId the room id where to place the call.
  @param video YES to make a video call.
+ @param isBypass Yes to by pass room member count for not create conference call
  @param success A block object called when the operation succeeds. It provides the created MXCall instance.
  @param failure A block object called when the operation fails.
  */
 - (void)placeCallInRoom:(NSString *)roomId withVideo:(BOOL)video
+                byPassRoomMemberCount:(BOOL)isBypass
                 success:(void (^)(MXCall *call))success
                 failure:(void (^)(NSError * _Nullable error))failure;
 
@@ -279,6 +281,7 @@ extern NSString *const kMXProtocolVectorSipVirtual;
  */
 - (void)placeCallAgainst:(NSString *)phoneNumber
                withVideo:(BOOL)video
+   byPassRoomMemberCount:(BOOL)isBypass
                 success:(void (^)(MXCall *call))success
                 failure:(void (^)(NSError * _Nullable error))failure;
 
