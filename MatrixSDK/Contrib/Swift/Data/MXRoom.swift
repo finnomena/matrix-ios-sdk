@@ -874,8 +874,8 @@ public extension MXRoom {
          - completion: A block object called when the operation completes.
          - response: Provides the created `MXCall` instance on success.
      */
-    @nonobjc func placeCall(withVideo hasVideo: Bool, completion: @escaping (_ response: MXResponse<MXCall>) -> Void) {
-        __placeCall(withVideo: hasVideo, success: currySuccess(completion), failure: curryFailure(completion))
+    @nonobjc func placeCall(withVideo hasVideo: Bool, byPassRoomMemberCount: Bool, completion: @escaping (_ response: MXResponse<MXCall>) -> Void) {
+        __placeCall(withVideo: hasVideo, byPassRoomMemberCount: byPassRoomMemberCount, success: currySuccess(completion), failure: curryFailure(completion))
     }
     
     

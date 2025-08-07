@@ -3125,12 +3125,13 @@ NSInteger const kMXRoomInvalidInviteSenderErrorCode = 9002;
 
 #pragma mark - Voice over IP
 - (void)placeCallWithVideo:(BOOL)video
+     byPassRoomMemberCount:(BOOL)isBypass
                    success:(void (^)(MXCall *call))success
                    failure:(void (^)(NSError *error))failure
 {
     if (mxSession.callManager)
     {
-        [mxSession.callManager placeCallInRoom:self.roomId withVideo:video success:success failure:failure];
+        [mxSession.callManager placeCallInRoom:self.roomId withVideo:video byPassRoomMemberCount:isBypass success:success failure:failure];
     }
     else if (failure)
     {

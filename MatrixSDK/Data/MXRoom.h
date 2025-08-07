@@ -1281,6 +1281,7 @@ Remove a tag applied on an event of the room
  @param failure A block object called when the operation fails.
  */
 - (void)placeCallWithVideo:(BOOL)video
+     byPassRoomMemberCount:(BOOL)isBypass
                    success:(void (^)(MXCall *call))success
                    failure:(void (^)(NSError *error))failure NS_REFINED_FOR_SWIFT;
 
