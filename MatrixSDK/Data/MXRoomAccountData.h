@@ -81,6 +81,11 @@ MX_ASSUME_MISSING_NULLABILITY_BEGIN
  */
 - (NSArray<NSString *> *)getTaggedEventsIds:(NSString*)tag;
 
+/**
+ Provide the list of custom event
+ @return the list of custom event
+ */
+- (NSDictionary<NSString*, NSDictionary<NSString*, id> *> *)getCustomEvent;
 @end
 
 MX_ASSUME_MISSING_NULLABILITY_END

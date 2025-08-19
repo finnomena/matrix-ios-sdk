@@ -98,6 +98,11 @@
     return spaceOrder;
 }
 
+- (NSDictionary<NSString*, NSDictionary<NSString*, id> *> *)getCustomEvent
+{
+    return _customEvents;
+}
+
 #pragma mark - NSCoding
 - (instancetype)initWithCoder:(NSCoder *)aDecoder
 {
