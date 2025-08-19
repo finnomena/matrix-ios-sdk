@@ -145,7 +145,8 @@ extern NSString *const kMXProtocolVectorSipVirtual;
  
  @param event The call event.
  */
-- (void)handleCallEvent:(MXEvent *)event;
+- (void)handleCallEvent:(MXEvent *)event
+   verifySpecificTarget:(BOOL)verifySpecificTarget;
 
 /**
  The related matrix session.
