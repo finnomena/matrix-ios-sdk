@@ -125,7 +125,7 @@ NSTimeInterval const kMXCallDirectRoomJoinTimeout = 30;
 
             if (MXTimelineDirectionForwards == direction)
             {
-                [self handleCallEvent:event];
+                [self handleCallEvent:event verifySpecificTarget:NO];
             }
         }];
 
@@ -369,11 +369,12 @@ NSTimeInterval const kMXCallDirectRoomJoinTimeout = 30;
 }
 
 - (void)handleCallEvent:(MXEvent *)event
+   verifySpecificTarget:(BOOL)verifySpecificTarget;
 {
     switch (event.eventType)
     {
         case MXEventTypeCallInvite:
-            [self handleCallInvite:event];
+            [self handleCallInvite:event verifySpecificTarget:verifySpecificTarget];
             break;
         case MXEventTypeCallAnswer:
             [self handleCallAnswer:event];
@@ -450,10 +451,11 @@ NSTimeInterval const kMXCallDirectRoomJoinTimeout = 30;
 }
 
 - (void)handleCallInvite:(MXEvent *)event
+    verifySpecificTarget:(BOOL)verifySpecificTarget
 {
     MXCallInviteEventContent *content = [MXCallInviteEventContent modelFromJSON:event.content];
     
-    if (content.invitee && ![_mxSession.myUserId isEqualToString:content.invitee])
+    if ((content.invitee && ![_mxSession.myUserId isEqualToString:content.invitee]) && verifySpecificTarget)
     {
         //  this call invite has a specific target, and it's not me, ignore
         return;
