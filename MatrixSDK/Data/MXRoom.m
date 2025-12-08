@@ -2135,10 +2135,8 @@ NSInteger const kMXRoomInvalidInviteSenderErrorCode = 9002;
         
         NSMutableDictionary *msgContent = [NSMutableDictionary dictionary];
         
-        msgContent[@"format"] = kMXRoomMessageFormatHTML;
         msgContent[kMXMessageTypeKey] = kMXMessageTypeText;
-        msgContent[kMXMessageBodyKey] = replyToBody;
-        msgContent[@"formatted_body"] = replyToFormattedBody;
+        msgContent[kMXMessageBodyKey] = textMessage;
         msgContent[kMXEventRelationRelatesToKey] = relatesToDict;
 
         operation = [self sendMessageWithContent:msgContent
