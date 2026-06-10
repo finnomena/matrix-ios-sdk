@@ -64,6 +64,11 @@ NSString *const kMXCallSupportsTransferringStatusDidChange = @"kMXCallSupportsTr
     MXCallInviteEventContent *callInviteEventContent;
 
     /**
+     The event_id of the m.call.invite this call relates to (for m.relates_to).
+     */
+    NSString *callInviteEventId;
+
+    /**
      The date when the communication has been established.
      */
     NSDate *callConnectedDate;
@@ -322,6 +327,7 @@ NSString *const kMXCallSupportsTransferringStatusDidChange = @"kMXCallSupportsTr
                 MXWeakify(self);
                 [self.callSignalingRoom sendEventOfType:kMXEventTypeStringCallInvite content:content threadId:nil localEcho:nil success:^(NSString *eventId) {
 
+                    self->callInviteEventId = eventId;
                     self->callInviteEventContent = [MXCallInviteEventContent modelFromJSON:content];
                     [self setState:MXCallStateInviteSent reason:nil];
 
@@ -401,7 +407,7 @@ NSString *const kMXCallSupportsTransferringStatusDidChange = @"kMXCallSupportsTr
                     
                     MXWeakify(self);
                     
-                    [self.callSignalingRoom sendEventOfType:kMXEventTypeStringCallAnswer content:content threadId:nil localEcho:nil success:^(NSString *eventId){
+                    [self.callSignalingRoom sendEventOfType:kMXEventTypeStringCallAnswer content:[self mxCallContentByAddingVoipRelation:content] threadId:nil localEcho:nil success:^(NSString *eventId){
                         //  assume for now, this is the selected answer
                         self.selectedAnswer = [MXEvent modelFromJSON:@{
                             @"event_id": eventId,
@@ -509,7 +515,7 @@ NSString *const kMXCallSupportsTransferringStatusDidChange = @"kMXCallSupportsTr
         {
             // Send the reject event
             MXWeakify(self);
-            [_callSignalingRoom sendEventOfType:kMXEventTypeStringCallReject content:content threadId:nil localEcho:nil success:^(NSString *eventId) {
+            [_callSignalingRoom sendEventOfType:kMXEventTypeStringCallReject content:[self mxCallContentByAddingVoipRelation:content] threadId:nil localEcho:nil success:^(NSString *eventId) {
                 terminateBlock();
             } failure:^(NSError *error) {
                 MXStrongifyAndReturnIfNil(self);
@@ -551,7 +557,7 @@ NSString *const kMXCallSupportsTransferringStatusDidChange = @"kMXCallSupportsTr
         {
             //  Send the hangup event
             MXWeakify(self);
-            [_callSignalingRoom sendEventOfType:kMXEventTypeStringCallHangup content:content threadId:nil localEcho:nil success:^(NSString *eventId) {
+            [_callSignalingRoom sendEventOfType:kMXEventTypeStringCallHangup content:[self mxCallContentByAddingVoipRelation:content] threadId:nil localEcho:nil success:^(NSString *eventId) {
                 [MXSDKOptions.sharedInstance.analyticsDelegate trackCallEndedWithDuration:self.duration
                                                                                     video:self.isVideoCall
                                                                      numberOfParticipants:self.room.summary.membersCount.joined
@@ -572,6 +578,22 @@ NSString *const kMXCallSupportsTransferringStatusDidChange = @"kMXCallSupportsTr
             terminateBlock();
         }
     }
+}
+
+#pragma mark - Finnomena VOIP relation
+
+- (NSDictionary *)mxCallContentByAddingVoipRelation:(NSDictionary *)content
+{
+    if (callInviteEventId.length == 0)
+    {
+        return content;
+    }
+    NSMutableDictionary *contentWithRelation = [content mutableCopy];
+    contentWithRelation[@"m.relates_to"] = @{
+        @"rel_type": @"com.finnomena.oracle.voip",
+        @"event_id": callInviteEventId
+    };
+    return contentWithRelation;
 }
 
 #pragma mark - Hold
@@ -1088,7 +1110,8 @@ NSString *const kMXCallSupportsTransferringStatusDidChange = @"kMXCallSupportsTr
     MXLogDebug(@"[MXCall][%@] handleCallInvite", _callId)
     
     callInviteEventContent = [MXCallInviteEventContent modelFromJSON:event.content];
-    
+    callInviteEventId = event.eventId;
+
     if ([self isMyEvent:event])
     {
         return;
