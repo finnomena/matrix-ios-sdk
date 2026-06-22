@@ -167,7 +167,7 @@ FOUNDATION_EXPORT NSInteger const kMXRoomInvalidInviteSenderErrorCode;
  network request. If it is missing, the value is fetched from the homeserver to
  confirm, then merged into the local account data and persisted before being returned.
 
- @param type the custom event type (e.g. kMXRoomAccountDataCustomEventTypeOracleRoomName). Required
+ @param type the custom event type (e.g. "com.finnomena.oracle.room_name"). Required
  @param success A block called with the event content, or nil if the homeserver has no value for this type. Optional
  @param failure A block called on network or other errors. Optional
 

@@ -22,11 +22,6 @@
 #import "MXEvent.h"
 #import "MXVirtualRoomInfo.h"
 
-/**
- The custom event type stored in room account data that holds the Finnomena room name.
- */
-FOUNDATION_EXPORT NSString *const kMXRoomAccountDataCustomEventTypeOracleRoomName;
-
 MX_ASSUME_MISSING_NULLABILITY_BEGIN
 
 /**

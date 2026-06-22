@@ -19,8 +19,6 @@
 #import "MXEvent.h"
 #import "MXRoomCreateContent.h"
 
-NSString *const kMXRoomAccountDataCustomEventTypeOracleRoomName = @"com.finnomena.oracle.room_name";
-
 #warning File has not been annotated with nullability, see MX_ASSUME_MISSING_NULLABILITY_BEGIN
 
 @interface MXRoomAccountData ()
