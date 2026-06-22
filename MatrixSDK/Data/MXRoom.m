@@ -82,6 +82,14 @@ NSInteger const kMXRoomInvalidInviteSenderErrorCode = 9002;
      FIFO queue of failure blocks waiting for [self members:].
      */
     NSMutableArray<void (^)(NSError *)> *pendingMembersFailureBlocks;
+
+    /**
+     Custom account-data event types confirmed absent on the homeserver, so that
+     -customEventOfType:success:failure: does not repeatedly hit the server with a
+     lookup that returns M_NOT_FOUND. Transient (not persisted): re-confirmed once
+     per room instance; a value set later still arrives through /sync.
+     */
+    NSMutableSet<NSString *> *customEventTypesConfirmedAbsent;
 }
 @end
 
@@ -3119,6 +3127,84 @@ NSInteger const kMXRoomInvalidInviteSenderErrorCode = 9002;
                                            withParameters:content
                                                   success:success
                                                   failure:failure];
+}
+
+- (MXHTTPOperation *)customEventOfType:(NSString *)type
+                               success:(void (^)(NSDictionary<NSString *, id> *content))success
+                               failure:(void (^)(NSError *error))failure
+{
+    // Serve from local account data if present — no network.
+    NSDictionary *localContent = [_accountData getCustomEvent][type];
+    if (localContent)
+    {
+        if (success)
+        {
+            success(localContent);
+        }
+        return nil;
+    }
+
+    // Already confirmed absent on the homeserver during this room's lifetime — don't
+    // hammer the server with repeated M_NOT_FOUND lookups (e.g. on each room list refresh).
+    if ([customEventTypesConfirmedAbsent containsObject:type])
+    {
+        if (success)
+        {
+            success(nil);
+        }
+        return nil;
+    }
+
+    // Local is null — fetch this type from the homeserver to confirm.
+    MXWeakify(self);
+    return [mxSession.matrixRestClient getRoomAccountData:_roomId
+                                               eventType:type
+                                                 success:^(NSDictionary *JSONResponse) {
+        MXStrongifyAndReturnIfNil(self);
+
+        // Inject the fetched content into the local model via the existing custom-event pipeline.
+        MXEvent *event = [MXEvent modelFromJSON:@{
+            @"type": type,
+            @"content": JSONResponse ?: @{}
+        }];
+        [self->_accountData handleEvent:event];
+
+        // Persist so subsequent getCustomEvent reads are consistent without waiting for sync.
+        if ([self->mxSession.store respondsToSelector:@selector(storeAccountDataForRoom:userData:)])
+        {
+            [self->mxSession.store storeAccountDataForRoom:self.roomId userData:self->_accountData];
+        }
+
+        if (success)
+        {
+            success(JSONResponse);
+        }
+    } failure:^(NSError *error) {
+        MXStrongifyAndReturnIfNil(self);
+
+        // M_NOT_FOUND => confirmed: the homeserver genuinely has no value for this type.
+        // Remember it so we don't re-fetch on every call; a value set later still arrives via /sync.
+        MXError *mxError = [[MXError alloc] initWithNSError:error];
+        if ([mxError.errcode isEqualToString:kMXErrCodeStringNotFound])
+        {
+            if (!self->customEventTypesConfirmedAbsent)
+            {
+                self->customEventTypesConfirmedAbsent = [NSMutableSet set];
+            }
+            [self->customEventTypesConfirmedAbsent addObject:type];
+
+            if (success)
+            {
+                success(nil);
+            }
+            return;
+        }
+
+        if (failure)
+        {
+            failure(error);
+        }
+    }];
 }
 
 #pragma mark - Voice over IP
