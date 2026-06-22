@@ -88,6 +88,11 @@ NSInteger const kMXRoomInvalidInviteSenderErrorCode = 9002;
 @implementation MXRoom
 @synthesize mxSession;
 
+// Room ids confirmed by the homeserver to have no custom account-data value, so that
+// -customEventOfType:success:failure: fetches at most once per room per app run (reset
+// when the app is killed). A value set later still arrives through /sync.
+static NSMutableSet<NSString *> *roomIdsWithCustomEventConfirmedAbsent;
+
 - (instancetype)init
 {
     self = [super init];
@@ -3119,6 +3124,85 @@ NSInteger const kMXRoomInvalidInviteSenderErrorCode = 9002;
                                            withParameters:content
                                                   success:success
                                                   failure:failure];
+}
+
+- (MXHTTPOperation *)customEventOfType:(NSString *)type
+                               success:(void (^)(NSDictionary<NSString *, id> *content))success
+                               failure:(void (^)(NSError *error))failure
+{
+    // Serve from local account data if present — no network.
+    NSDictionary *localContent = [_accountData getCustomEvent][type];
+    if (localContent)
+    {
+        if (success)
+        {
+            success(localContent);
+        }
+        return nil;
+    }
+
+    // This room already returned no value from the homeserver during this app session —
+    // don't re-fetch (e.g. on each room list refresh).
+    if ([roomIdsWithCustomEventConfirmedAbsent containsObject:self.roomId])
+    {
+        if (success)
+        {
+            success(nil);
+        }
+        return nil;
+    }
+
+    // Local is null — fetch this type from the homeserver to confirm.
+    MXWeakify(self);
+    return [mxSession.matrixRestClient getRoomAccountData:_roomId
+                                               eventType:type
+                                                 success:^(NSDictionary *JSONResponse) {
+        MXStrongifyAndReturnIfNil(self);
+
+        // Inject the fetched content into the local model via the existing custom-event pipeline.
+        MXEvent *event = [MXEvent modelFromJSON:@{
+            @"type": type,
+            @"content": JSONResponse ?: @{}
+        }];
+        [self->_accountData handleEvent:event];
+
+        // Persist so subsequent getCustomEvent reads are consistent without waiting for sync.
+        if ([self->mxSession.store respondsToSelector:@selector(storeAccountDataForRoom:userData:)])
+        {
+            [self->mxSession.store storeAccountDataForRoom:self.roomId userData:self->_accountData];
+        }
+
+        if (success)
+        {
+            success(JSONResponse);
+        }
+    } failure:^(NSError *error) {
+        MXStrongifyAndReturnIfNil(self);
+
+        // M_NOT_FOUND => confirmed: the homeserver genuinely has no value for this room.
+        // Remember the room id so we don't re-fetch this app session; a value set later
+        // still arrives via /sync.
+        MXError *mxError = [[MXError alloc] initWithNSError:error];
+        if ([mxError.errcode isEqualToString:kMXErrCodeStringNotFound])
+        {
+            if (!roomIdsWithCustomEventConfirmedAbsent)
+            {
+                roomIdsWithCustomEventConfirmedAbsent = [NSMutableSet set];
+            }
+            [roomIdsWithCustomEventConfirmedAbsent addObject:self.roomId];
+
+            if (success)
+            {
+                success(nil);
+            }
+            return;
+        }
+
+        if (failure)
+        {
+            failure(error);
+        }
+    }];
 }
 
 #pragma mark - Voice over IP

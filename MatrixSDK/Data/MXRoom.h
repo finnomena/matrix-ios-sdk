@@ -161,6 +161,23 @@ FOUNDATION_EXPORT NSInteger const kMXRoomInvalidInviteSenderErrorCode;
                             failure:(void (^)(NSError *))failure NS_REFINED_FOR_SWIFT;
 
 /**
+ Provide the content of a custom event stored in the room private account data.
+
+ If the value is already present locally it is returned immediately without any
+ network request. If it is missing, the value is fetched from the homeserver to
+ confirm, then merged into the local account data and persisted before being returned.
+
+ @param type the custom event type (e.g. "com.finnomena.oracle.room_name"). Required
+ @param success A block called with the event content, or nil if the homeserver has no value for this type. Optional
+ @param failure A block called on network or other errors. Optional
+
+ @return an MXHTTPOperation instance, or nil when served from the local cache.
+ */
+- (MXHTTPOperation *)customEventOfType:(NSString *)type
+                               success:(void (^)(NSDictionary<NSString *, id> * _Nullable content))success
+                               failure:(void (^)(NSError *error))failure;
+
+/**
  The text message partially typed by the user but not yet sent.
  The value is stored by the session store. Thus, it can be retrieved
  when the application restarts.
