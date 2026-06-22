@@ -88,6 +88,11 @@ NSInteger const kMXRoomInvalidInviteSenderErrorCode = 9002;
 @implementation MXRoom
 @synthesize mxSession;
 
+// Room ids confirmed by the homeserver to have no custom account-data value, so that
+// -customEventOfType:success:failure: fetches at most once per room per app run (reset
+// when the app is killed). A value set later still arrives through /sync.
+static NSMutableSet<NSString *> *roomIdsWithCustomEventConfirmedAbsent;
+
 - (instancetype)init
 {
     self = [super init];
@@ -3120,11 +3125,6 @@ NSInteger const kMXRoomInvalidInviteSenderErrorCode = 9002;
                                                   success:success
                                                   failure:failure];
 }
-
-// Room ids confirmed by the homeserver to have no custom account-data value, so that
-// -customEventOfType:success:failure: fetches at most once per room per app run (reset
-// when the app is killed). A value set later still arrives through /sync.
-static NSMutableSet<NSString *> *roomIdsWithCustomEventConfirmedAbsent;
 
 - (MXHTTPOperation *)customEventOfType:(NSString *)type
                                success:(void (^)(NSDictionary<NSString *, id> *content))success
