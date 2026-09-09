@@ -1750,12 +1750,23 @@ NSString *const kMXCallSupportsTransferringStatusDidChange = @"kMXCallSupportsTr
         if (_state != MXCallStateEnded) {
             // Send the notif that the call expired to the app
             [self setState:MXCallStateInviteExpired reason:nil];
-            
-            // Set appropriate call end reason
-            _endReason = MXCallEndReasonMissed;
-            
-            // And set the final state: MXCallStateEnded
-            [self setState:MXCallStateEnded reason:nil];
+
+            if (!_isIncoming)
+            {
+                // Outgoing call: signal the timeout to the room so every other client
+                // (web, Android) renders a missed call, as matrix-js-sdk does.
+                // hangupWithReason: sends m.call.hangup { reason: "invite_timeout" },
+                // sets endReason = MXCallEndReasonMissed and moves state to MXCallStateEnded.
+                [self hangupWithReason:MXCallHangupReasonInviteTimeout];
+            }
+            else
+            {
+                // Set appropriate call end reason
+                _endReason = MXCallEndReasonMissed;
+
+                // And set the final state: MXCallStateEnded
+                [self setState:MXCallStateEnded reason:nil];
+            }
         }
 
         // The call manager can now ignore this call
