@@ -158,7 +158,7 @@ typedef void (^HandleOfferBlock)(dispatch_block_t);
                     
                     if (!error)
                     {
-                        success(sdp.sdp);
+                        success([self sdpByFilteringHostCandidates:sdp.sdp]);
                     }
                     else
                     {
@@ -344,7 +344,7 @@ typedef void (^HandleOfferBlock)(dispatch_block_t);
                         
                         if (!error)
                         {
-                            success(sdp.sdp);
+                            success([self sdpByFilteringHostCandidates:sdp.sdp]);
                         }
                         else
                         {
@@ -389,7 +389,7 @@ typedef void (^HandleOfferBlock)(dispatch_block_t);
                         
                         if (!error)
                         {
-                            success(sdp.sdp);
+                            success([self sdpByFilteringHostCandidates:sdp.sdp]);
                         }
                         else
                         {
@@ -596,10 +596,18 @@ didGenerateIceCandidate:(RTCIceCandidate *)candidate
 {
     MXLogDebug(@"[MXJingleCallStackCall] didGenerateIceCandidate: %@", candidate);
 
+    if ([self isHostCandidateSdp:candidate.sdp])
+    {
+        MXLogDebug(@"[MXJingleCallStackCall] didGenerateIceCandidate: Filter out host candidate");
+        return;
+    }
+
+    NSString *candidateSdp = [self candidateSdpByHidingRelatedAddress:candidate.sdp];
+
     // Forward found ICE candidates
     dispatch_async(dispatch_get_main_queue(), ^{
         
-        [self.delegate callStackCall:self onICECandidateWithSdpMid:candidate.sdpMid sdpMLineIndex:candidate.sdpMLineIndex candidate:candidate.sdp];
+        [self.delegate callStackCall:self onICECandidateWithSdpMid:candidate.sdpMid sdpMLineIndex:candidate.sdpMLineIndex candidate:candidateSdp];
         
     });
 }
@@ -681,6 +689,129 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
 
 #pragma mark - Private methods
 
+/**
+ Tell if a candidate is a host one, holding an address of the device itself.
+
+ Host candidates are never sent to the other party: they carry the local, VPN and IPv6 addresses
+ of the device. Filtering happens on the candidates themselves rather than through the WebRTC host
+ filter, because libwebrtc keeps host candidates that hold a public IP address even when that filter
+ is on, considering them equivalent to server reflexive ones, which leaks every IPv6 address.
+
+ @param candidateSdp the SDP of a single ICE candidate.
+ @return YES if the candidate is a host one.
+ */
+- (BOOL)isHostCandidateSdp:(NSString *)candidateSdp
+{
+    return [candidateSdp rangeOfString:@" typ host" options:NSCaseInsensitiveSearch].location != NSNotFound;
+}
+
+/**
+ Hide the address a candidate was derived from.
+
+ The rel-addr and rel-port fields expose the local IP address of the device for a server reflexive
+ candidate, and its public IP address for a relay one. They are informational, ICE does not use them
+ to establish a connection, so their values are replaced by the unspecified address and the discard
+ port. The address the candidate is reachable at is left untouched: changing it breaks the call.
+
+ @param candidateSdp the SDP of a single ICE candidate, with or without its `a=` prefix.
+ @return the candidate sdp with hidden related address.
+ */
+- (NSString *)candidateSdpByHidingRelatedAddress:(NSString *)candidateSdp
+{
+    if (candidateSdp.length == 0)
+    {
+        return candidateSdp;
+    }
+
+    NSMutableArray<NSString *> *tokens = [[candidateSdp componentsSeparatedByString:@" "] mutableCopy];
+
+    //  Look the fields up by name, the candidate attribute holds optional fields and extensions
+    NSUInteger relatedAddressIndex = [tokens indexOfObject:@"raddr"];
+    if (relatedAddressIndex != NSNotFound && relatedAddressIndex + 1 < tokens.count)
+    {
+        NSString *relatedAddress = tokens[relatedAddressIndex + 1];
+        BOOL isIPv6 = [relatedAddress containsString:@":"];
+        tokens[relatedAddressIndex + 1] = isIPv6 ? @"::" : @"0.0.0.0";
+    }
+
+    NSUInteger relatedPortIndex = [tokens indexOfObject:@"rport"];
+    if (relatedPortIndex != NSNotFound && relatedPortIndex + 1 < tokens.count)
+    {
+        //  9 is the discard port, the placeholder port SDP uses for a media line that carries no address
+        tokens[relatedPortIndex + 1] = @"9";
+    }
+
+    return [tokens componentsJoinedByString:@" "];
+}
+
+/**
+ Remove the host candidates from a session description.
+
+ Candidates gathered before the offer or the answer is created are embedded into it, so they are
+ filtered the same way as the trickled ones. A connection line pointing to a filtered address is
+ reset to the unspecified address used by trickle ICE, otherwise it would leak it back.
+
+ @param sdp a session description.
+ @return the sdp without its host candidate lines.
+ */
+- (NSString *)sdpByFilteringHostCandidates:(NSString *)sdp
+{
+    if (sdp.length == 0)
+    {
+        return sdp;
+    }
+
+    NSMutableArray<NSString *> *keptLines = [NSMutableArray array];
+    NSMutableSet<NSString *> *filteredAddresses = [NSMutableSet set];
+
+    for (NSString *line in [sdp componentsSeparatedByString:@"\n"])
+    {
+        if ([line hasPrefix:@"a=candidate:"])
+        {
+            if ([self isHostCandidateSdp:line])
+            {
+                MXLogDebug(@"[MXJingleCallStackCall] sdpByFilteringHostCandidates: Filter out host candidate");
+
+                //  `a=candidate:<foundation> <component> <transport> <priority> <address> <port> …`
+                NSArray<NSString *> *fields = [line componentsSeparatedByString:@" "];
+                if (fields.count > 4)
+                {
+                    [filteredAddresses addObject:fields[4]];
+                }
+                continue;
+            }
+
+            [keptLines addObject:[self candidateSdpByHidingRelatedAddress:line]];
+            continue;
+        }
+
+        [keptLines addObject:line];
+    }
+
+    if (filteredAddresses.count)
+    {
+        for (NSUInteger index = 0; index < keptLines.count; index++)
+        {
+            NSString *line = keptLines[index];
+            if (![line hasPrefix:@"c=IN "])
+            {
+                continue;
+            }
+
+            //  `c=IN <IP4|IP6> <address>`
+            NSArray<NSString *> *fields = [[line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsSeparatedByString:@" "];
+            if (fields.count == 3 && [filteredAddresses containsObject:fields[2]])
+            {
+                MXLogDebug(@"[MXJingleCallStackCall] sdpByFilteringHostCandidates: Reset connection line");
+                NSString *lineEnding = [line hasSuffix:@"\r"] ? @"\r" : @"";
+                keptLines[index] = [NSString stringWithFormat:@"c=IN IP4 0.0.0.0%@", lineEnding];
+            }
+        }
+    }
+
+    return [keptLines componentsJoinedByString:@"\n"];
+}
+
 - (void)checkTheCallIsRemotelyOnHold
 {
     NSArray<RTC_OBJC_TYPE(RTCRtpTransceiver) *> *activeReceivers = [self->peerConnection.transceivers filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(RTC_OBJC_TYPE(RTCRtpTransceiver) *transceiver, NSDictionary<NSString *,id> * _Nullable bindings) {
@@ -748,6 +879,7 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
 
 - (RTCMediaConstraints *)mediaConstraints
 {
+    
     return [[RTCMediaConstraints alloc] initWithMandatoryConstraints:@{
         kRTCMediaConstraintsOfferToReceiveAudio: kRTCMediaConstraintsValueTrue,
         kRTCMediaConstraintsOfferToReceiveVideo: (isVideoCall ? kRTCMediaConstraintsValueTrue : kRTCMediaConstraintsValueFalse)
