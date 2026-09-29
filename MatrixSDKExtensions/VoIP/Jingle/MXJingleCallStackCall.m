@@ -30,10 +30,9 @@
 
 NSString *const kMXJingleCallWebRTCMainStreamID = @"userMedia";
 
-//  Placeholders hiding the addresses of the device in the ICE candidates sent to the other party.
-//  9 is the discard port, the port SDP uses for a line that carries no reachable address.
 static NSString *const kMXJingleCallIPv4Placeholder = @"0.0.0.0";
 static NSString *const kMXJingleCallIPv6Placeholder = @"::";
+// 9 is the discard port
 static NSString *const kMXJingleCallDiscardPort = @"9";
 
 typedef void (^HandleOfferBlock)(dispatch_block_t);
@@ -692,7 +691,6 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
 /**
  Tell if a candidate is a host one, holding an address of the device itself.
 
- @param candidateSdp the SDP of a single ICE candidate.
  @return YES if the candidate is a host one.
  */
 - (BOOL)isHostCandidateSdp:(NSString *)candidateSdp
@@ -703,14 +701,6 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
 /**
  Hide the addresses of the device carried by an ICE candidate.
 
- A host candidate holds a local, VPN or IPv6 address of the device in its connection address, so
- that address and its port are replaced by placeholders. The rel-addr and rel-port fields are
- replaced too, on every candidate: they expose the local address of the device for a server
- reflexive candidate, and its public address for a relay one. ICE does not use any of them to
- establish a connection, and the connection address of a server reflexive or relay candidate is
- left untouched: changing it breaks the call.
-
- @param candidateSdp the SDP of a single ICE candidate, without its `a=` prefix.
  @return the candidate sdp with hidden addresses.
  */
 - (NSString *)sanitizedCandidateSdp:(NSString *)candidateSdp
@@ -720,13 +710,11 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
         return candidateSdp;
     }
 
-    //  Keep the line ending aside, the fields are rebuilt by joining the tokens back together
     NSString *lineEnding = [candidateSdp hasSuffix:@"\r"] ? @"\r" : @"";
     NSString *line = lineEnding.length ? [candidateSdp substringToIndex:candidateSdp.length - 1] : candidateSdp;
 
     NSMutableArray<NSString *> *tokens = [[line componentsSeparatedByString:@" "] mutableCopy];
 
-    //  `candidate:<foundation> <component> <transport> <priority> <address> <port> typ <type> …`
     NSUInteger connectionAddressIndex = 4;
     NSUInteger connectionPortIndex = 5;
     if (tokens.count > connectionPortIndex && [self isHostCandidateSdp:line])
@@ -735,7 +723,6 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
         tokens[connectionPortIndex] = kMXJingleCallDiscardPort;
     }
 
-    //  Look the related fields up by name, the candidate attribute holds optional fields and extensions
     NSUInteger relatedAddressIndex = [tokens indexOfObject:@"raddr"];
     if (relatedAddressIndex != NSNotFound && relatedAddressIndex + 1 < tokens.count)
     {
@@ -753,9 +740,6 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
 
 /**
  Hide the addresses of the device carried by a session description.
-
- Candidates gathered before the offer or the answer is created are embedded into it, and its
- connection line points to the default candidate, which can be a host one.
 
  @param sdp a session description.
  @return the sdp with hidden addresses.
