@@ -690,7 +690,6 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
 
 /**
  Tell if a candidate is a host one, holding an address of the device itself.
-
  @return YES if the candidate is a host one.
  */
 - (BOOL)isHostCandidateSdp:(NSString *)candidateSdp
@@ -700,7 +699,6 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
 
 /**
  Hide the addresses of the device carried by an ICE candidate.
-
  @return the candidate sdp with hidden addresses.
  */
 - (NSString *)sanitizedCandidateSdp:(NSString *)candidateSdp
@@ -740,8 +738,6 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
 
 /**
  Hide the addresses of the device carried by a session description.
-
- @param sdp a session description.
  @return the sdp with hidden addresses.
  */
 - (NSString *)sanitizedSdp:(NSString *)sdp
