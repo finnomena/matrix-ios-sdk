@@ -30,6 +30,11 @@
 
 NSString *const kMXJingleCallWebRTCMainStreamID = @"userMedia";
 
+static NSString *const kMXJingleCallIPv4Placeholder = @"0.0.0.0";
+static NSString *const kMXJingleCallIPv6Placeholder = @"::";
+// 9 is the discard port
+static NSString *const kMXJingleCallDiscardPort = @"9";
+
 typedef void (^HandleOfferBlock)(dispatch_block_t);
 
 @interface MXJingleCallStackCall () <RTCPeerConnectionDelegate>
@@ -158,7 +163,7 @@ typedef void (^HandleOfferBlock)(dispatch_block_t);
                     
                     if (!error)
                     {
-                        success(sdp.sdp);
+                        success([self sanitizedSdp:sdp.sdp]);
                     }
                     else
                     {
@@ -344,7 +349,7 @@ typedef void (^HandleOfferBlock)(dispatch_block_t);
                         
                         if (!error)
                         {
-                            success(sdp.sdp);
+                            success([self sanitizedSdp:sdp.sdp]);
                         }
                         else
                         {
@@ -389,7 +394,7 @@ typedef void (^HandleOfferBlock)(dispatch_block_t);
                         
                         if (!error)
                         {
-                            success(sdp.sdp);
+                            success([self sanitizedSdp:sdp.sdp]);
                         }
                         else
                         {
@@ -596,10 +601,12 @@ didGenerateIceCandidate:(RTCIceCandidate *)candidate
 {
     MXLogDebug(@"[MXJingleCallStackCall] didGenerateIceCandidate: %@", candidate);
 
+    NSString *candidateSdp = [self sanitizedCandidateSdp:candidate.sdp];
+
     // Forward found ICE candidates
     dispatch_async(dispatch_get_main_queue(), ^{
         
-        [self.delegate callStackCall:self onICECandidateWithSdpMid:candidate.sdpMid sdpMLineIndex:candidate.sdpMLineIndex candidate:candidate.sdp];
+        [self.delegate callStackCall:self onICECandidateWithSdpMid:candidate.sdpMid sdpMLineIndex:candidate.sdpMLineIndex candidate:candidateSdp];
         
     });
 }
@@ -681,6 +688,117 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
 
 #pragma mark - Private methods
 
+/**
+ Tell if a candidate is a host one, holding an address of the device itself.
+ @return YES if the candidate is a host one.
+ */
+- (BOOL)isHostCandidateSdp:(NSString *)candidateSdp
+{
+    return [candidateSdp rangeOfString:@" typ host" options:NSCaseInsensitiveSearch].location != NSNotFound;
+}
+
+/**
+ Hide the addresses of the device carried by an ICE candidate.
+ @return the candidate sdp with hidden addresses.
+ */
+- (NSString *)sanitizedCandidateSdp:(NSString *)candidateSdp
+{
+    if (candidateSdp.length == 0)
+    {
+        return candidateSdp;
+    }
+
+    NSString *lineEnding = [candidateSdp hasSuffix:@"\r"] ? @"\r" : @"";
+    NSString *line = lineEnding.length ? [candidateSdp substringToIndex:candidateSdp.length - 1] : candidateSdp;
+
+    NSMutableArray<NSString *> *tokens = [[line componentsSeparatedByString:@" "] mutableCopy];
+
+    NSUInteger connectionAddressIndex = 4;
+    NSUInteger connectionPortIndex = 5;
+    if (tokens.count > connectionPortIndex && [self isHostCandidateSdp:line])
+    {
+        tokens[connectionAddressIndex] = [self placeholderForAddress:tokens[connectionAddressIndex]];
+        tokens[connectionPortIndex] = kMXJingleCallDiscardPort;
+    }
+
+    NSUInteger relatedAddressIndex = [tokens indexOfObject:@"raddr"];
+    if (relatedAddressIndex != NSNotFound && relatedAddressIndex + 1 < tokens.count)
+    {
+        tokens[relatedAddressIndex + 1] = [self placeholderForAddress:tokens[relatedAddressIndex + 1]];
+    }
+
+    NSUInteger relatedPortIndex = [tokens indexOfObject:@"rport"];
+    if (relatedPortIndex != NSNotFound && relatedPortIndex + 1 < tokens.count)
+    {
+        tokens[relatedPortIndex + 1] = kMXJingleCallDiscardPort;
+    }
+
+    return [[tokens componentsJoinedByString:@" "] stringByAppendingString:lineEnding];
+}
+
+/**
+ Hide the addresses of the device carried by a session description.
+ @return the sdp with hidden addresses.
+ */
+- (NSString *)sanitizedSdp:(NSString *)sdp
+{
+    if (sdp.length == 0)
+    {
+        return sdp;
+    }
+
+    NSMutableArray<NSString *> *sanitizedLines = [NSMutableArray array];
+
+    for (NSString *line in [sdp componentsSeparatedByString:@"\n"])
+    {
+        if ([line hasPrefix:@"a=candidate:"])
+        {
+            NSString *candidateSdp = [line substringFromIndex:@"a=".length];
+            [sanitizedLines addObject:[@"a=" stringByAppendingString:[self sanitizedCandidateSdp:candidateSdp]]];
+        }
+        else if ([line hasPrefix:@"c=IN IP4 "] || [line hasPrefix:@"c=IN IP6 "])
+        {
+            [sanitizedLines addObject:[self sanitizedConnectionLine:line]];
+        }
+        else
+        {
+            [sanitizedLines addObject:line];
+        }
+    }
+
+    return [sanitizedLines componentsJoinedByString:@"\n"];
+}
+
+/**
+ Replace the address of a connection line by a placeholder.
+
+ @param line a `c=IN <IP4|IP6> <address>` line.
+ @return the line with a placeholder address.
+ */
+- (NSString *)sanitizedConnectionLine:(NSString *)line
+{
+    NSString *lineEnding = [line hasSuffix:@"\r"] ? @"\r" : @"";
+    NSString *trimmedLine = lineEnding.length ? [line substringToIndex:line.length - 1] : line;
+
+    NSArray<NSString *> *tokens = [trimmedLine componentsSeparatedByString:@" "];
+    if (tokens.count != 3)
+    {
+        return line;
+    }
+
+    NSString *placeholder = [tokens[1] isEqualToString:@"IP6"] ? kMXJingleCallIPv6Placeholder : kMXJingleCallIPv4Placeholder;
+    return [NSString stringWithFormat:@"c=IN %@ %@%@", tokens[1], placeholder, lineEnding];
+}
+
+/**
+ @param address an IPv4 or IPv6 address.
+ @return the placeholder of the same family.
+ */
+- (NSString *)placeholderForAddress:(NSString *)address
+{
+    return [address containsString:@":"] ? kMXJingleCallIPv6Placeholder : kMXJingleCallIPv4Placeholder;
+}
+
 - (void)checkTheCallIsRemotelyOnHold
 {
     NSArray<RTC_OBJC_TYPE(RTCRtpTransceiver) *> *activeReceivers = [self->peerConnection.transceivers filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(RTC_OBJC_TYPE(RTCRtpTransceiver) *transceiver, NSDictionary<NSString *,id> * _Nullable bindings) {
@@ -748,6 +866,7 @@ didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates;
 
 - (RTCMediaConstraints *)mediaConstraints
 {
+    
     return [[RTCMediaConstraints alloc] initWithMandatoryConstraints:@{
         kRTCMediaConstraintsOfferToReceiveAudio: kRTCMediaConstraintsValueTrue,
         kRTCMediaConstraintsOfferToReceiveVideo: (isVideoCall ? kRTCMediaConstraintsValueTrue : kRTCMediaConstraintsValueFalse)
